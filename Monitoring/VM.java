@@ -1,17 +1,20 @@
 package Monitoring;
 
-
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 
+import com.vmware.vim25.GuestInfo;
+import com.vmware.vim25.VirtualMachineConfigInfo;
+import com.vmware.vim25.VirtualMachineSummary;
 import com.vmware.vim25.mo.*;
 
 public class VM {
 
-	public static ArrayList<ManagedEntity> inventory = new ArrayList<ManagedEntity>();
-	public static void build_inventory()
+	private VirtualMachine vm;
+	public static ArrayList<VM> inventory = new ArrayList<VM>();
+	public static void buildInventory()
 	{
         ServiceInstance si = null;
 		try {
@@ -44,10 +47,42 @@ public class VM {
         	for(String monitoredVM : Config.getVmsForMonitoring())
         	{
         		if(vm.getName().equals(monitoredVM))
-         			inventory.add(vm);
+         			inventory.add(new VM(vm));
         	}
         }
 		System.out.println("DEBUG: Inventory: " + inventory);        
         System.out.println("INFO: Built inventory for " + inventory.size() + " VMs to be monitored.");
 	}
+	
+	public VM(ManagedEntity vm){
+		this.vm = (VirtualMachine) vm;
+	}
+	
+	public static VM[] getInventory() 
+	{
+		VM[] inventoryArray = new VM[inventory.size()];
+		return (VM[]) inventory.toArray(inventoryArray);
+	}
+	
+	public void printStatistics()
+	{
+		System.out.println("STATISTICS for " + vm.getName());
+       	VirtualMachineConfigInfo vminfo = vm.getConfig();
+    	GuestInfo guestInfo = vm.getGuest();
+    	VirtualMachineSummary summary = vm.getSummary();
+    	
+    	System.out.println("GuestOS: " + vminfo.getGuestFullName());
+    	System.out.println("CPU Allocation Limit: " + vminfo.getCpuAllocation().getLimit() + " MHz");
+    	System.out.println("Memory Allocation Limit: " + vminfo.getMemoryAllocation().getLimit() + " MB");
+    	System.out.println("IP Address: " + guestInfo.getIpAddress());
+    	System.out.println("Hostname: " + guestInfo.getHostName());
+    	System.out.println("Storage: " + summary.storage.committed + "Bytes");
+	}
 }
+
+
+
+
+
+
+
