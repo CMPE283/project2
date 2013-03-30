@@ -1,5 +1,7 @@
 package Monitoring;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.rmi.RemoteException;
@@ -77,6 +79,18 @@ public class VM {
     	System.out.println("IP Address: " + guestInfo.getIpAddress());
     	System.out.println("Hostname: " + guestInfo.getHostName());
     	System.out.println("Storage: " + summary.storage.committed + "Bytes");
+	}
+	
+	public boolean isHostUp()
+	{
+		GuestInfo guestInfo = vm.getGuest();
+		try {
+			InetAddress inet = InetAddress.getByName(guestInfo.getIpAddress());
+			return inet.isReachable(3200);
+		} catch (IOException e) {
+			e.printStackTrace();
+			return false;
+		}
 	}
 }
 
