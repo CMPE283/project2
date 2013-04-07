@@ -3,30 +3,41 @@ package Monitoring;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+
 public class Supervisor {
+	static Logger logger = Logger.getLogger("Monitoring283");
+	static Dashboard dashboard = new Dashboard(Config.getDashboardLocation());
+	static Timer timer = new Timer();
 
 	public static void main(String[] args) {
+		PropertyConfigurator.configure("log4j.properties");
+		logger.info("Initializing...");
+
+		Supervisor supervisor = new Supervisor();
+		supervisor.setupGracefulExit();
+				
 		VM.buildInventory();
 
-		System.out.println("Scheduling ALL tasks");
-		Supervisor supervisor = new Supervisor();
+		logger.info("Scheduling ALL tasks");
 		supervisor.scheduleAllTasks();
 	}
 	
 	public void scheduleAllTasks()
 	{
-		Timer timer = new Timer();
-		timer.schedule(new StatisticsTask() , 0, 5 * 60 * 1000);
-		timer.schedule(new SnapshotsTask()  , 0, 30 * 60 * 1000);
-		timer.schedule(new RescueTask()  , 0, 2 * 1000);
+//		timer.schedule(new StatisticsTask() , 0, 5 * 60 * 1000);
+//		timer.schedule(new SnapshotsTask()  , 0, 30 * 60 * 1000);
+//		timer.schedule(new RescueTask()  , 0, 2 * 1000);
 	}
 	
 	class StatisticsTask extends TimerTask
 	{
 		public void run()
 		{
+			logger.debug("StatisticsTask started");
 			for(VM vm : VM.getInventory())
-				vm.printStatistics();			
+				dashboard.update(vm.getStatistics());			
 		}
 	}
 	
@@ -34,6 +45,7 @@ public class Supervisor {
 	{
 		public void run()
 		{
+			logger.debug("SnapshotsTask started");
 			for(VM vm : VM.getInventory())
 			{
 				vm.removeAllSnapshots();
@@ -46,6 +58,7 @@ public class Supervisor {
 	{
 		public void run()
 		{
+			logger.debug("RescueTask started");
 			for(VM vm : VM.getInventory())
 			{
 				if(vm.isHostNotReachable())
@@ -53,5 +66,18 @@ public class Supervisor {
 			}
 		}
 		
+	}
+	
+	public void setupGracefulExit()
+	{
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+		    public void run() { 
+		    	logger.info("Purging all scheduled tasks");
+		    	timer.purge();
+		    	logger.info("Cancelling all scheduled tasks");
+		    	timer.cancel();
+		    	logger.info("Exiting the monitoring application");		    	
+		    }
+		 });
 	}
 }
