@@ -26,7 +26,7 @@ public class Supervisor {
 	
 	public void scheduleAllTasks()
 	{
-//		timer.schedule(new StatisticsTask() , 0, 5 * 60 * 1000);
+		timer.schedule(new StatisticsTask() , 0,  5 * 1000);
 //		timer.schedule(new SnapshotsTask()  , 0, 30 * 60 * 1000);
 //		timer.schedule(new RescueTask()  , 0, 2 * 1000);
 	}
@@ -35,7 +35,7 @@ public class Supervisor {
 	{
 		public void run()
 		{
-			logger.debug("StatisticsTask started");
+			logger.debug("StatisticsTask woke up");
 			for(VM vm : VM.getInventory())
 				dashboard.update(vm.getStatistics());			
 		}
@@ -45,7 +45,7 @@ public class Supervisor {
 	{
 		public void run()
 		{
-			logger.debug("SnapshotsTask started");
+			logger.debug("SnapshotsTask woke up");
 			for(VM vm : VM.getInventory())
 			{
 				vm.removeAllSnapshots();
@@ -58,7 +58,7 @@ public class Supervisor {
 	{
 		public void run()
 		{
-			logger.debug("RescueTask started");
+			logger.debug("RescueTask woke up");
 			for(VM vm : VM.getInventory())
 			{
 				if(vm.isHostNotReachable())

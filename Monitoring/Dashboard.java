@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Calendar;
 
 import org.apache.log4j.Logger;
 
@@ -19,6 +20,9 @@ public class Dashboard {
 	
 	public void update(String content)
 	{
+		 Calendar cal = Calendar.getInstance();
+		 String preamble = String.format("\nUpdated on: %tc\n", cal);
+		
 		try {
 			if (!file.exists()) {
 				file.createNewFile();
@@ -27,11 +31,11 @@ public class Dashboard {
 			FileWriter fw;
 			fw = new FileWriter(file.getAbsoluteFile());
 			BufferedWriter bw = new BufferedWriter(fw);
-			bw.write(content);
+			bw.write(preamble + content);
 			bw.close();
 
 		} catch (IOException e) {
-			logger.error("Couldn't upodate dashboard");
+			logger.error("Couldn't update dashboard");
 			e.printStackTrace();
 		}
 

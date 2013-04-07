@@ -82,18 +82,18 @@ public class VM {
 	public String getStatistics()
 	{
 		StringBuffer content = new StringBuffer();
-		
-		content.append("STATISTICS for " + getVm().getName());
+			
        	VirtualMachineConfigInfo vminfo = getVm().getConfig();
     	GuestInfo guestInfo = getVm().getGuest();
     	VirtualMachineSummary summary = getVm().getSummary();
     	
-    	content.append("GuestOS: " + vminfo.getGuestFullName());
-    	content.append("CPU Allocation Limit: " + vminfo.getCpuAllocation().getLimit() + " MHz");
-    	content.append("Memory Allocation Limit: " + vminfo.getMemoryAllocation().getLimit() + " MB");
-    	content.append("IP Address: " + guestInfo.getIpAddress());
-    	content.append("Hostname: " + guestInfo.getHostName());
-    	content.append("Storage: " + summary.storage.committed + " Bytes");
+		content.append("\nSTATISTICS FOR " + getVm().getName());    	
+    	content.append("\nGuestOS: " + vminfo.getGuestFullName());
+    	content.append("\nCPU Allocation Limit: " + vminfo.getCpuAllocation().getLimit() + " MHz");
+    	content.append("\nMemory Allocation Limit: " + vminfo.getMemoryAllocation().getLimit() + " MB");
+    	content.append("\nIP Address: " + guestInfo.getIpAddress());
+    	content.append("\nHostname: " + guestInfo.getHostName());
+    	content.append("\nStorage: " + summary.storage.committed + " Bytes");
     	
     	return content.toString();
 	}
