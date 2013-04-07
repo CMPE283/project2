@@ -21,13 +21,14 @@ public class Dashboard {
 	public void update(String content)
 	{
 		 Calendar cal = Calendar.getInstance();
-		 String preamble = String.format("\nUpdated on: %tc\n", cal);
+		 String preamble = String.format("MONITORING DASHBOARD\nUpdated on: %tc\n", cal);
 		
 		try {
 			if (!file.exists()) {
 				file.createNewFile();
 			}			
 			logger.info("Updating Dashboard");
+			logger.trace(preamble + content);
 			FileWriter fw;
 			fw = new FileWriter(file.getAbsoluteFile());
 			BufferedWriter bw = new BufferedWriter(fw);

@@ -14,6 +14,7 @@ import com.vmware.vim25.ManagedEntityStatus;
 import com.vmware.vim25.VirtualMachineConfigInfo;
 import com.vmware.vim25.VirtualMachineMovePriority;
 import com.vmware.vim25.VirtualMachinePowerState;
+import com.vmware.vim25.VirtualMachineQuickStats;
 import com.vmware.vim25.VirtualMachineSummary;
 import com.vmware.vim25.mo.*;
 
@@ -86,14 +87,19 @@ public class VM {
        	VirtualMachineConfigInfo vminfo = getVm().getConfig();
     	GuestInfo guestInfo = getVm().getGuest();
     	VirtualMachineSummary summary = getVm().getSummary();
+    	VirtualMachineQuickStats stats = getVm().getSummary().getQuickStats();
     	
-		content.append("\nSTATISTICS FOR " + getVm().getName());    	
-    	content.append("\nGuestOS: " + vminfo.getGuestFullName());
-    	content.append("\nCPU Allocation Limit: " + vminfo.getCpuAllocation().getLimit() + " MHz");
-    	content.append("\nMemory Allocation Limit: " + vminfo.getMemoryAllocation().getLimit() + " MB");
-    	content.append("\nIP Address: " + guestInfo.getIpAddress());
-    	content.append("\nHostname: " + guestInfo.getHostName());
-    	content.append("\nStorage: " + summary.storage.committed + " Bytes");
+		content.append("\n           STATISTICS FOR " + getVm().getName());    	
+    	content.append("\n                Hostname: " + guestInfo.getHostName());
+		content.append("\n                 GuestOS: " + vminfo.getGuestFullName());
+    	content.append("\n               CPU Usage: " + stats.getOverallCpuUsage() + " MHz");
+    	content.append("\n            Memory Usage: " + stats.getHostMemoryUsage() + " MB");
+    	content.append("\n              IP Address: " + guestInfo.getIpAddress());
+    	content.append("\n       Committed Storage: " + summary.storage.committed / 1024 / 1024 + " MB");
+    	content.append("\n         Clean Power Off: " + getVm().getRuntime().getCleanPowerOff());
+    	try {
+    		content.append("\n           Resource Pool: " + getVm().getResourcePool().getName());
+		} catch (RemoteException e){};
     	
     	return content.toString();
 	}
