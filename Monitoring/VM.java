@@ -8,8 +8,7 @@ import java.rmi.RemoteException;
 import java.util.ArrayList;
 
 import com.vmware.vim25.GuestInfo;
-import com.vmware.vim25.TaskInfo;
-import com.vmware.vim25.TaskInfoState;
+import com.vmware.vim25.ManagedEntityStatus;
 import com.vmware.vim25.VirtualMachineConfigInfo;
 import com.vmware.vim25.VirtualMachineMovePriority;
 import com.vmware.vim25.VirtualMachinePowerState;
@@ -71,7 +70,7 @@ public class VM {
 	}
 	
 	public VM(ManagedEntity vm){
-		this.vm = (VirtualMachine) vm;
+		this.setVm((VirtualMachine) vm);
 	}
 	
 	public static VM[] getInventory() 
@@ -82,10 +81,10 @@ public class VM {
 	
 	public void printStatistics()
 	{
-		System.out.println("STATISTICS for " + vm.getName());
-       	VirtualMachineConfigInfo vminfo = vm.getConfig();
-    	GuestInfo guestInfo = vm.getGuest();
-    	VirtualMachineSummary summary = vm.getSummary();
+		System.out.println("STATISTICS for " + getVm().getName());
+       	VirtualMachineConfigInfo vminfo = getVm().getConfig();
+    	GuestInfo guestInfo = getVm().getGuest();
+    	VirtualMachineSummary summary = getVm().getSummary();
     	
     	System.out.println("GuestOS: " + vminfo.getGuestFullName());
     	System.out.println("CPU Allocation Limit: " + vminfo.getCpuAllocation().getLimit() + " MHz");
@@ -95,75 +94,148 @@ public class VM {
     	System.out.println("Storage: " + summary.storage.committed + " Bytes");
 	}
 	
-	public boolean isHostUp()
+	public boolean isHostReachable()
 	{
-		GuestInfo guestInfo = vm.getGuest();
+		GuestInfo guestInfo = getVm().getGuest();
 		try {
-			InetAddress inet = InetAddress.getByName(guestInfo.getIpAddress());
-			return inet.isReachable(3200);
+			if(guestInfo.getIpAddress() == null){
+				System.out.println("Couldn't retrieve IP address for host " + getVm().getName() + ". It could be powering up.");
+				return true;
+			}
+			else
+			{	
+				InetAddress inet = InetAddress.getByName(guestInfo.getIpAddress());
+				boolean reachable = (inet.isReachable(3200) || inet.isReachable(3200));
+				System.out.println("DEBUG: Pinging IP: " + guestInfo.getIpAddress() + ". Reachable?: " + reachable);
+				return reachable;
+			}
 		} catch (IOException e) {
-			e.printStackTrace();
+			System.out.println("Exception while testing host for reachability");
 			return false;
 		}
 	}
-	
-	public boolean isHostDown()
+		
+	public boolean isHostNotReachable()
 	{
-		return !isHostUp();
+		return !isHostReachable();
 	}
 	
 	public void snapshot()
 	{
 		try {
-			vm.createSnapshot_Task("current", String.valueOf(System.currentTimeMillis()) , false, true);
-		} catch (RemoteException e) {
+			System.out.println("INFO: Making new snapshot for " + getVm().getName());
+			getVm().createSnapshot_Task("current", String.valueOf(System.currentTimeMillis()) , false, true).waitForTask();
+		} catch (RemoteException | InterruptedException e) {
 			e.printStackTrace();
 		}		
 	}
 	
 	public void removeAllSnapshots()
 	{
-	//	System.out.println("INFO: Removing " + vm.getSnapshot().rootSnapshotList.length + " snapshot trees for " + vm.getName());
+		System.out.println("INFO: Removing all snapshot trees for" + getVm().getName());
 		try {
-			vm.removeAllSnapshots_Task();
+			getVm().removeAllSnapshots_Task();
 		} catch (RemoteException e) {
 			e.printStackTrace();
 		}
 	}
 
-	public void rescue()
+	public synchronized void rescue()
 	{
+		System.out.println("Attempting to rescue " + getVm().getName());		
 		try {
-			vm.revertToCurrentSnapshot_Task(null);
-			Task migration = vm.migrateVM_Task((ResourcePool) getOtherResourcePool(), hostSystem, VirtualMachineMovePriority.highPriority, 
+			ResourcePool targetResourcePool = selectTargetResourcePool();
+			HostSystem targetHostSystem = targetResourcePool.getOwner().getHosts()[0];
+
+			System.out.println("INFO: Attempting to gracefully shutdown " + getVm().getName());
+			getVm().shutdownGuest();
+			Thread.sleep(15 * 1000); // since shutDownGuest() returns immediately
+			
+			if(getVm().getRuntime().getPowerState() == VirtualMachinePowerState.poweredOn)
+			{
+				System.out.println("INFO: Forcing shutdown for " + getVm().getName());
+				getVm().powerOffVM_Task().waitForTask();
+			}
+			
+			System.out.println("INFO: Reverting " + getVm().getName() + " to most recent snapshot");
+			getVm().revertToCurrentSnapshot_Task(null);
+			
+			System.out.println("INFO: Migrating to ResourcePool " + targetResourcePool.getName() + " located on Host " + targetHostSystem.getName());
+	
+			Task migration = getVm().migrateVM_Task(targetResourcePool, 
+					targetHostSystem, 
+					VirtualMachineMovePriority.highPriority, 
 					VirtualMachinePowerState.poweredOff);
 			
 			if(migration.waitForTask() == Task.SUCCESS)
-			{
-				vm.powerOnVM_Task(null);
-			}
-									
+				getVm().powerOnVM_Task(null).waitForTask();
 		} catch (RemoteException | InterruptedException e) {
 			e.printStackTrace();
 		}
 	}
 
-	public ManagedEntity getOtherResourcePool()
+	public ResourcePool selectTargetResourcePool()
 	{
 		try {
-			for(ManagedEntity resourcePool : VM.allResourcePools)
+			String currentPoolName = vm.getResourcePool().getName();
+			String nextResourcePoolName = roundRobinNextResourcePool(currentPoolName);
+			ResourcePool nextResourcePool = null;
+		
+			while(true)
 			{
-				if(!resourcePool.getName().equals("Resources") && !resourcePool.getName().equals(vm.getResourcePool().getName()))
+				if(nextResourcePoolName.equals(currentPoolName)){
+					System.out.println("ERROR: No resource pools are available");
+					break;
+				}
+				for(ManagedEntity rp : allResourcePools)
+				{				
+					if(rp.getName().equals(nextResourcePoolName))
+						nextResourcePool = (ResourcePool) rp;						
+				}
+				if(nextResourcePool.getRuntime().getOverallStatus() == ManagedEntityStatus.red)
 				{
-					System.out.println("Migrating to " + resourcePool.getName());
-					return resourcePool;					
+					System.out.println("WARN: Red status encountered on " + nextResourcePool.getName());
+					nextResourcePoolName = roundRobinNextResourcePool(nextResourcePoolName);
+				}
+				else
+				{
+					System.out.println("INFO: Status of ResourcePool " + nextResourcePool.getName() + " is " + nextResourcePool.getRuntime().getOverallStatus());
+					break;
 				}
 			}
-			return vm.getResourcePool();		
+			
+			System.out.println("INFO: RoundRobin Selecting ResourcePool " + nextResourcePool.getName() + " as the target.");
+			return nextResourcePool;
 		} catch (RemoteException e) {
+			System.out.println("FATAL: Couldn't select resource pool");
 			e.printStackTrace();
 			return null;
 		}
+	}
+	
+	private String roundRobinNextResourcePool(String currentPool)
+	{
+		String pool = null;
+		for(int i = 0; i < Config.getAvailableResourcePools().length ; i++)
+		{
+			if(Config.getAvailableResourcePools()[i].equals(currentPool))
+			{
+				if(i == Config.getAvailableResourcePools().length - 1)
+					pool = Config.getAvailableResourcePools()[0];
+				else
+					pool = Config.getAvailableResourcePools()[i+1];					
+			}
+			
+		}	
+		return pool;
+	}
+
+	public VirtualMachine getVm() {
+		return vm;
+	}
+
+	public void setVm(VirtualMachine vm) {
+		this.vm = vm;
 	}
 }
 

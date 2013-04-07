@@ -7,7 +7,7 @@ public class Config {
     public static String[] getVmsForMonitoring() 
     {
     	return new String[] {
-    			"SampleVM1"
+    			"SampleVM2"
     	}; 
     }
     public static String[] getAvailableResourcePools()

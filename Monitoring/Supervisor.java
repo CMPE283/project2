@@ -8,11 +8,10 @@ public class Supervisor {
 	public static void main(String[] args) {
 		VM.buildInventory();
 
-		System.out.println("Scheduling all tasks");
+		System.out.println("Scheduling ALL tasks");
 		Supervisor supervisor = new Supervisor();
 		supervisor.scheduleAllTasks();
 	}
-
 	
 	public void scheduleAllTasks()
 	{
@@ -26,7 +25,8 @@ public class Supervisor {
 	{
 		public void run()
 		{
-			VM.getInventory()[0].printStatistics();			
+			for(VM vm : VM.getInventory())
+				vm.printStatistics();			
 		}
 	}
 	
@@ -34,8 +34,11 @@ public class Supervisor {
 	{
 		public void run()
 		{
-			VM.getInventory()[0].removeAllSnapshots();
-			VM.getInventory()[0].snapshot();
+			for(VM vm : VM.getInventory())
+			{
+				vm.removeAllSnapshots();
+				vm.snapshot();
+			}
 		}
 	}
 	
@@ -43,10 +46,10 @@ public class Supervisor {
 	{
 		public void run()
 		{
-			System.out.println("UP? : " + VM.getInventory()[0].isHostUp());
-			if(VM.getInventory()[0].isHostDown())
+			for(VM vm : VM.getInventory())
 			{
-				VM.getInventory()[0].rescue();
+				if(vm.isHostNotReachable())
+					vm.rescue();
 			}
 		}
 		
