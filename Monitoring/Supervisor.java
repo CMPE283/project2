@@ -27,8 +27,6 @@ public class Supervisor {
 	public void scheduleAllTasks()
 	{
 		timer.schedule(new StatisticsTask() , 0, 2 * 1000);
-		//timer.schedule(new SnapshotsTask()  , 0, 30 * 60 * 1000);
-		//timer.schedule(new RescueTask()  , 0, 2 * 1000);
 	}
 	
 	class StatisticsTask extends TimerTask
@@ -38,7 +36,11 @@ public class Supervisor {
 			logger.trace("StatisticsTask woke up");
 
 			for(VM vm : VM.getInventory())
-				dashboard.update(vm.getStatistics());			
+			{
+				vm.refreshStatistics();
+				vm.postStatisticsToCarbon(Config.getCarbonHost(), Config.getCarbonPort());
+				dashboard.update(vm.getStatistics().toString());
+			}
 		}
 	}
 		

@@ -6,6 +6,17 @@ public class Config {
     public static String getVmwarePassword() { return "12!@qwQW" ; }
     public static String getDashboardLocation() { return "dashboard.log" ; }
     
+    public static String getCarbonHost()
+    {
+    	return "130.65.157.246";
+    }
+    
+    public static Integer getCarbonPort()
+    {
+    	return new Integer(2003);
+    }
+    
+    
     public static String[] getVmsForMonitoring() 
     {
     	return new String[] {
