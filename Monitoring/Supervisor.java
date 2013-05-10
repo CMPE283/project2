@@ -19,59 +19,35 @@ public class Supervisor {
 		supervisor.setupGracefulExit();
 				
 		VM.buildInventory();
-
+		
 		logger.info("Scheduling ALL tasks");
 		supervisor.scheduleAllTasks();
 	}
 	
 	public void scheduleAllTasks()
 	{
-		timer.schedule(new StatisticsTask() , 0,  5 * 1000);
-//		timer.schedule(new SnapshotsTask()  , 0, 30 * 60 * 1000);
-//		timer.schedule(new RescueTask()  , 0, 2 * 1000);
+		timer.schedule(new StatisticsTask() , 0, 2 * 1000);
+		//timer.schedule(new SnapshotsTask()  , 0, 30 * 60 * 1000);
+		//timer.schedule(new RescueTask()  , 0, 2 * 1000);
 	}
 	
 	class StatisticsTask extends TimerTask
 	{
 		public void run()
 		{
-			logger.debug("StatisticsTask woke up");
+			logger.trace("StatisticsTask woke up");
+
 			for(VM vm : VM.getInventory())
 				dashboard.update(vm.getStatistics());			
 		}
 	}
-	
-	class SnapshotsTask extends TimerTask
-	{
-		public void run()
-		{
-			logger.debug("SnapshotsTask woke up");
-			for(VM vm : VM.getInventory())
-			{
-				vm.removeAllSnapshots();
-				vm.snapshot();
-			}
-		}
-	}
-	
-	class RescueTask extends TimerTask
-	{
-		public void run()
-		{
-			logger.debug("RescueTask woke up");
-			for(VM vm : VM.getInventory())
-			{
-				if(vm.isHostNotReachable())
-					vm.rescue();
-			}
-		}
 		
-	}
-	
 	public void setupGracefulExit()
 	{
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 		    public void run() { 
+		    	logger.info("Closing the connection with the ESXi Server");
+		    	VM.getSi().getServerConnection().logout();
 		    	logger.info("Purging all scheduled tasks");
 		    	timer.purge();
 		    	logger.info("Cancelling all scheduled tasks");

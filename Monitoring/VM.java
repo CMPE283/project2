@@ -1,16 +1,29 @@
 package Monitoring;
 
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
+import java.net.Socket;
+import java.net.SocketException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 
 import org.apache.log4j.Logger;
 
+import com.vmware.vim25.AlarmSetting;
+import com.vmware.vim25.AlarmSpec;
+import com.vmware.vim25.AlarmState;
 import com.vmware.vim25.GuestInfo;
 import com.vmware.vim25.ManagedEntityStatus;
+import com.vmware.vim25.StateAlarmExpression;
+import com.vmware.vim25.StateAlarmOperator;
 import com.vmware.vim25.VirtualMachineConfigInfo;
 import com.vmware.vim25.VirtualMachineMovePriority;
 import com.vmware.vim25.VirtualMachinePowerState;
@@ -23,6 +36,8 @@ public class VM {
 	private VirtualMachine vm;
 	public static ArrayList<VM> inventory = new ArrayList<VM>();
 	public static ManagedEntity[] allResourcePools; 
+	static ServiceInstance si = null;
+
 	
 	static Logger logger = Logger.getLogger("Monitoring283");
 	
@@ -30,7 +45,6 @@ public class VM {
 	{
 		logger.debug("Building Inventory");
 		
-		ServiceInstance si = null;
 		try {
 			si = new ServiceInstance(new URL(Config.getVmwareHostURL()),
 					Config.getVmwareLogin(), 
@@ -70,6 +84,49 @@ public class VM {
         logger.info("Built inventory for " + inventory.size() + " VMs to be monitored.");
 	}
 	
+	
+	public void addPowerOffAlarm()
+	{
+		try {
+			AlarmManager alarmManager = si.getAlarmManager();
+			for(Alarm a : alarmManager.getAlarm(getVm()))
+			{
+				if(a.getAlarmInfo().getName().equals("DisableMonitoring"))
+				{
+					logger.info("'DisableMonitoring on PowerOff' Alarm already exisits for " + getVm().getName());
+					return;
+				}				
+			}
+			
+		    AlarmSetting as = new AlarmSetting();
+		    as.setReportingFrequency(0); //as often as possible
+		    as.setToleranceRange(0);
+		    
+			AlarmSpec powerOffAlarm = new AlarmSpec();
+			powerOffAlarm.setName("DisableMonitoring");
+			powerOffAlarm.setDescription("Created automatically by Monitoring Application");
+			powerOffAlarm.setExpression(powerOffAlarmExpression());
+			powerOffAlarm.setEnabled(true);
+			powerOffAlarm.setSetting(as);
+			
+			alarmManager.createAlarm(getVm(), powerOffAlarm);
+			logger.info("Created a 'DisableMonitoring on PowerOff' Alarm for " + getVm().getName());
+		} catch (RemoteException e) {
+			logger.error("Failed to add the DisableMonitoring Alarm");
+			e.printStackTrace();
+		}
+	}
+
+	private StateAlarmExpression powerOffAlarmExpression()
+	{
+	    StateAlarmExpression alarmExpression = new StateAlarmExpression();
+	    alarmExpression.setType("VirtualMachine");
+	    alarmExpression.setStatePath("runtime.powerState");
+	    alarmExpression.setOperator(StateAlarmOperator.isEqual);
+	    alarmExpression.setRed("poweredOff");
+	    return alarmExpression;
+	}
+	
 	public VM(ManagedEntity vm){
 		this.setVm((VirtualMachine) vm);
 	}
@@ -82,8 +139,10 @@ public class VM {
 	
 	public String getStatistics()
 	{
+		
 		StringBuffer content = new StringBuffer();
-			
+		StringBuffer carbonLog = new StringBuffer();
+
        	VirtualMachineConfigInfo vminfo = getVm().getConfig();
     	GuestInfo guestInfo = getVm().getGuest();
     	VirtualMachineSummary summary = getVm().getSummary();
@@ -96,12 +155,32 @@ public class VM {
     	content.append("\n            Memory Usage: " + stats.getHostMemoryUsage() + " MB");
     	content.append("\n              IP Address: " + guestInfo.getIpAddress());
     	content.append("\n       Committed Storage: " + summary.storage.committed / 1024 / 1024 + " MB");
-    	content.append("\n         Clean Power Off: " + getVm().getRuntime().getCleanPowerOff());
-    	try {
-    		content.append("\n           Resource Pool: " + getVm().getResourcePool().getName());
-		} catch (RemoteException e){};
+
+    	carbonLog.append("carbon.vmcpu." + getVm().getName() + " " + stats.getOverallCpuUsage() + " " + System.currentTimeMillis() / 1000L + "\n");
+    	
+    	emitLogs(carbonLog.toString());
     	
     	return content.toString();
+	}
+	
+	
+	public boolean emitLogs(String log)
+	{
+		logger.info("Attempting to send string: " + log);
+		
+		try {
+		Socket conn          = new Socket("130.65.157.246", 2003);
+		DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
+		dos.writeBytes(log);
+		conn.close();
+		}
+		catch(Exception e)
+		{
+			logger.error("Error while submitting log entry");
+			e.printStackTrace();
+		}
+		
+		return true;
 	}
 	
 	public boolean isHostReachable()
@@ -204,7 +283,7 @@ public class VM {
 					if(rp.getName().equals(nextResourcePoolName))
 						nextResourcePool = (ResourcePool) rp;						
 				}
-				if(nextResourcePool.getRuntime().getOverallStatus() == ManagedEntityStatus.red)
+				if(nextResourcePool.getOwner().getHosts()[0].getOverallStatus() == ManagedEntityStatus.red)
 				{
 					logger.warn("Red status encountered on " + nextResourcePool.getName() + ". Moving on the next ResourcePool");
 					nextResourcePoolName = roundRobinNextResourcePool(nextResourcePoolName);
@@ -245,9 +324,34 @@ public class VM {
 	public VirtualMachine getVm() {
 		return vm;
 	}
+	
+	public static ServiceInstance getSi(){
+		return si;
+	}
 
 	public void setVm(VirtualMachine vm) {
 		this.vm = vm;
+	}
+
+
+	public boolean monitoringEnabled() {
+		AlarmManager alarmManager = si.getAlarmManager();
+		try {
+			AlarmState[] alarms = alarmManager.getAlarmState(getVm());
+			if(alarms.length > 0 && getVm().getOverallStatus() == ManagedEntityStatus.red)
+			{
+				logger.info("Monitoring for " + getVm().getName() + " is disabled since it is switched off.");
+				return false;
+			}
+			else
+			{
+				return true;
+			}		
+		} catch (RemoteException e) {
+			logger.error("Error in validating alarms and status.");
+			e.printStackTrace();
+			return false;
+		}
 	}
 }
 
