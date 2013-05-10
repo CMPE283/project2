@@ -9,6 +9,8 @@ import java.util.ArrayList;
 
 import org.apache.log4j.Logger;
 
+import com.mongodb.DB;
+import com.mongodb.DBCollection;
 import com.vmware.vim25.VirtualMachineQuickStats;
 import com.vmware.vim25.mo.Folder;
 import com.vmware.vim25.mo.InventoryNavigator;
@@ -89,6 +91,7 @@ public class VM {
     	statistics.setName(getVm().getName());
     	statistics.setCpu(quickStats.getOverallCpuUsage());
     	statistics.setMemory(quickStats.getHostMemoryUsage());
+    	statistics.setTimeUpdated(System.currentTimeMillis() / 1000L);
     	    	
     	return statistics;
 	}
@@ -112,6 +115,15 @@ public class VM {
 		
 		return true;
 	}
+	
+	public boolean saveStatistics(DB db)
+	{
+		DBCollection collection = db.getCollection(getVm().getName());
+		collection.insert(statistics.getMongoDoc());
+		return true;
+	}
+	
+	
 				
 	public VirtualMachine getVm() {
 		return vm;

@@ -1,10 +1,14 @@
 package Monitoring;
 
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
+
 public class VMStats {
 
 	private String name;
 	private Integer cpu;
 	private Integer memory;
+	private long timeUpdated;
 
 	
 	public String toString()
@@ -14,9 +18,8 @@ public class VMStats {
 	
 	public String cpuStatsForMonitoring()
 	{
-		return "283.cpu." + name + " " + cpu.toString() + " " + System.currentTimeMillis() / 1000L + "\n";
+		return "283.cpu." + name + " " + cpu.toString() + " " + getTimeUpdated() + "\n";
 	}
-
 	
 	public String getName() {
 		return name;
@@ -40,6 +43,23 @@ public class VMStats {
 
 	public void setMemory(Integer memory) {
 		this.memory = memory;
+	}
+
+	public DBObject getMongoDoc() {
+		BasicDBObject document = new BasicDBObject("name", name).
+				append("cpu", cpu).
+				append("memory", memory).
+				append("time", timeUpdated);	
+		
+		return document;
+	}
+
+	public long getTimeUpdated() {
+		return timeUpdated;
+	}
+
+	public void setTimeUpdated(long timeUpdated) {
+		this.timeUpdated = timeUpdated;
 	}
 
 }

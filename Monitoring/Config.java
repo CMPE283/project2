@@ -16,6 +16,16 @@ public class Config {
     	return new Integer(2003);
     }
     
+    public static String getMongoHost()
+    {
+    	return "130.65.157.246";
+    }
+    
+    public static Integer getMongoPort()
+    {
+    	return new Integer(27017);
+    }
+    
     
     public static String[] getVmsForMonitoring() 
     {
