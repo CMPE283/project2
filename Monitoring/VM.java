@@ -1,16 +1,18 @@
 package Monitoring;
 
-import java.io.DataOutputStream;
 import java.net.MalformedURLException;
-import java.net.Socket;
 import java.net.URL;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.log4j.Logger;
 
+import com.mongodb.AggregationOutput;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.DBObject;
+import com.mongodb.BasicDBObject;
 import com.vmware.vim25.VirtualMachineQuickStats;
 import com.vmware.vim25.mo.Folder;
 import com.vmware.vim25.mo.InventoryNavigator;
@@ -83,7 +85,7 @@ public class VM {
 		return (VM[]) inventory.toArray(inventoryArray);
 	}
 	
-	public VMStats refreshStatistics()
+	public VMStats refreshRealTimeStatistics()
 	{
     	VirtualMachineQuickStats quickStats = getVm().getSummary().getQuickStats();
 
@@ -96,26 +98,7 @@ public class VM {
     	return statistics;
 	}
 	
-	
-	public boolean postStatisticsToCarbon(String hostname, Integer port)
-	{
-		logger.info("Attempting to send string: " + statistics.cpuStatsForMonitoring());
 		
-		try {
-		Socket conn = new Socket(hostname, port.intValue());
-		DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
-		dos.writeBytes(statistics.cpuStatsForMonitoring());
-		conn.close();
-		}
-		catch(Exception e)
-		{
-			logger.error("Error while submitting log entry");
-			e.printStackTrace();
-		}
-		
-		return true;
-	}
-	
 	public boolean saveStatistics(DB db)
 	{
 		DBCollection collection = db.getCollection(getVm().getName());
@@ -145,6 +128,48 @@ public class VM {
 
 	public void setStatistics(VMStats statistics) {
 		this.statistics = statistics;
+	}
+
+
+	public Iterable<DBObject> aggregateStatistics(DB db, String field, Long delta) {
+		DBCollection collection = db.getCollection(getVm().getName());
+
+		DBObject match = new BasicDBObject("$match", new BasicDBObject("time", new BasicDBObject("$gt", delta)));
+		
+		DBObject fields = new BasicDBObject(field, 1);
+		fields.put("_id", 0);
+		DBObject project = new BasicDBObject("$project", fields);
+		
+		DBObject groupFields = new BasicDBObject( "_id", "$vm");
+		groupFields.put("average", new BasicDBObject( "$avg", "$" + field));
+		DBObject group = new BasicDBObject("$group", groupFields);
+		
+		AggregationOutput aggregationOutput = collection.aggregate(match, project, group);
+		logger.info(aggregationOutput);
+		
+		return aggregationOutput.results();
+	}
+	
+	public String[] getAllAggregatedStatistics(DB db, Long delta, String label) {
+		String [] allFields = {"cpu", "memory"};
+		List<String> allMessages = new ArrayList<String>();
+		
+		for(String field : allFields){
+			Iterable<DBObject> results = aggregateStatistics(db, field, delta);
+			for(DBObject result : results){
+				logger.info(field + ": (average: " + result.get("average") + ")");
+				allMessages.add("283.aggregated." + getVm().getName() + "." + label + "." + field + " " + result.get("average") + " " + System.currentTimeMillis() / 1000L + "\n");
+			}
+		}
+		
+		String [] allStatistics = new String[allMessages.size()];
+		return allMessages.toArray(allStatistics);
+	}
+
+
+	public String[] getAllRealTimeStatistics() {
+		String [] allStats = {statistics.realTimeCpuStats(), statistics.realTimeMemoryStats()};
+		return allStats;
 	}
 
 }

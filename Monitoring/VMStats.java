@@ -16,10 +16,15 @@ public class VMStats {
 		return "[" + name + "] (cpu: " + cpu + " MHz) (memory: " + memory + " MB)\n";		
 	}
 	
-	public String cpuStatsForMonitoring()
+	public String realTimeCpuStats()
 	{
-		return "283.cpu." + name + " " + cpu.toString() + " " + getTimeUpdated() + "\n";
+		return "283.realtime.cpu." + name + " " + cpu.toString() + " " + getTimeUpdated() + "\n";
 	}
+
+	public String realTimeMemoryStats() {
+		return "283.realtime.memory." + name + " " + memory.toString() + " " + getTimeUpdated() + "\n";
+	}
+
 	
 	public String getName() {
 		return name;
@@ -61,5 +66,6 @@ public class VMStats {
 	public void setTimeUpdated(long timeUpdated) {
 		this.timeUpdated = timeUpdated;
 	}
+
 
 }

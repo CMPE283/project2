@@ -12,6 +12,7 @@ import com.mongodb.MongoClient;
 public class Supervisor {
 	static Logger logger = Logger.getLogger("Monitoring283");
 	static Dashboard dashboard = new Dashboard(Config.getDashboardLocation());
+	static Carbon carbon = new Carbon(Config.getCarbonHost(), Config.getCarbonPort().intValue());
 	static Timer timer = new Timer();
 	private DB db;
 
@@ -43,25 +44,69 @@ public class Supervisor {
 
 	public void scheduleAllTasks()
 	{
-		timer.schedule(new StatisticsTask() , 0, 10 * 1000);
+		timer.schedule(new RealTimeStatisticsTask() , 0, 10 * 1000);
+		timer.schedule(new FifteenMinuteStatisticsAggregationTask() , 0, 15 * 60 * 1000);
+		timer.schedule(new HourlyStatisticsAggregationTask(), 0, 60 * 60 * 1000);
+		timer.schedule(new DailyStatisticsAggregationTask(), 0, 24 * 60 * 60 * 1000);
 	}
 	
-	class StatisticsTask extends TimerTask
+	class RealTimeStatisticsTask extends TimerTask
 	{
 		public void run()
 		{
 			logger.trace("StatisticsTask woke up");
-
+			
 			for(VM vm : VM.getInventory())
 			{
-				vm.refreshStatistics();
-				vm.postStatisticsToCarbon(Config.getCarbonHost(), Config.getCarbonPort());
+				vm.refreshRealTimeStatistics();
+				carbon.dispatchStatistics(vm.getAllRealTimeStatistics());
 				vm.saveStatistics(db);
-				dashboard.update(vm.getStatistics().toString());
+			}
+		}
+	}
+	
+	class FifteenMinuteStatisticsAggregationTask extends TimerTask
+	{
+		public void run()
+		{
+			Long fifteenMinutesAgo = (System.currentTimeMillis() / 1000L) - (15 * 60);
+			
+			for(VM vm : VM.getInventory())
+			{
+				carbon.dispatchStatistics(vm.getAllAggregatedStatistics(db, fifteenMinutesAgo, "fifteen_minute"));
 			}
 		}
 	}
 		
+	class HourlyStatisticsAggregationTask extends TimerTask
+	{
+		public void run()
+		{
+			Long oneHourAgo = (System.currentTimeMillis() / 1000L) - (60 * 60);
+			
+			for(VM vm : VM.getInventory())
+			{
+				carbon.dispatchStatistics(vm.getAllAggregatedStatistics(db, oneHourAgo, "hourly"));
+			}
+		}
+	}
+		
+	class DailyStatisticsAggregationTask extends TimerTask
+	{
+		public void run()
+		{
+			Long oneDayAgo = (System.currentTimeMillis() / 1000L) - (24 * 60 * 60);
+			
+			for(VM vm : VM.getInventory())
+			{
+				carbon.dispatchStatistics(vm.getAllAggregatedStatistics(db, oneDayAgo, "daily"));
+			}
+		}
+	}
+		
+
+	
+	
 	public void setupGracefulExit()
 	{
 		Runtime.getRuntime().addShutdownHook(new Thread() {
