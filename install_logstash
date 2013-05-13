@@ -1,0 +1,18 @@
+#!/bin/sh
+
+apt-get install -y default-jdk
+wget https://logstash.objects.dreamhost.com/release/logstash-1.1.12-flatjar.jar
+echo "input {
+  file {
+    type => \"syslog\"
+    path => [ \"/var/log/messages\", \"/var/log/syslog\"]
+  }
+}
+
+output {
+  stdout { debug => true debug_format => \"json\"}
+  redis { host => \"130.65.157.246\" data_type => \"list\" key => \"logstash\" }
+}" > logshipping.conf
+java -jar logstash-1.1.12-flatjar.jar agent -f logshipping.conf 2>&1 > agent.logs &
+
+
