@@ -107,11 +107,11 @@ public class VM {
     	/* Added by Mitchell */
     	try
     	{
-    		int[] metricID = {125, 130, 131, 132, 143, 180, 181, 394, 395};
+    		int[] metricID = {125, 130, 131, 132, 143, 180, 181, 394, 395, 172};
     		PerformanceManager perfManager = getSi().getPerformanceManager();
     		String vHostName = "130.65.157.43";
     		ManagedEntity vHost =
-    				new InventoryNavigator(getSi().getRootFolder()).searchManagedEntity("HostSystem", "130.65.157.43");
+    				new InventoryNavigator(getSi().getRootFolder()).searchManagedEntity("HostSystem", vHostName);
     		if (vHost==null) //TODO finish this log output
     			System.out.println("vHost "+ vHostName +" not found");
     		
@@ -171,11 +171,11 @@ public class VM {
     					statistics.setNetBytesRxAverage((int) longs[longs.length-1]);
     				else if (val1.getId().getCounterId() == 395)
     					statistics.setNetBytesTxAverage((int) longs[longs.length-1]);
-    				/*
+    				
     				System.out.println("CounterID: " + val1.getId().getCounterId()
     						+ " Timestamp: " + infos[longs.length-1].getTimestamp().getTime()
     						+ " Metric Value: " + longs[longs.length-1]); 
-					*/				
+									
     			}
     		}
     	}
@@ -239,7 +239,14 @@ public class VM {
 	}
 	
 	public String[] getAllAggregatedStatistics(DB db, Long delta, String label) {
-		String [] allFields = {"cpu", "memory"};
+		String [] allFields = {"cpu", 
+						"memory", 
+						"diskUsageAverage",
+						"diskReadAverage",
+						"diskWriteAverage",
+						"netUsageAverage",
+						"netBytesRxAverage",
+						"netBytesTxAverage"};
 		List<String> allMessages = new ArrayList<String>();
 		
 		for(String field : allFields){

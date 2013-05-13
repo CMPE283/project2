@@ -30,7 +30,9 @@ public class Config {
     public static String[] getVmsForMonitoring() 
     {
     	return new String[] {
-    			"VM_1"
+    			"VM_1",
+    			"VM_4",
+    			"VM_2"
     	}; 
     }
     public static String[] getAvailableResourcePools()
